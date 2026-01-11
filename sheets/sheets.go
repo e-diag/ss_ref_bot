@@ -16,9 +16,9 @@ import (
 )
 
 type SheetsClient struct {
-	service      *sheets.Service
+	service       *sheets.Service
 	spreadsheetID string
-	
+
 	// Кэш для быстрого поиска
 	cacheMutex      sync.RWMutex
 	referrersByID   map[int64]*Referrer
@@ -29,27 +29,27 @@ type SheetsClient struct {
 }
 
 type Referrer struct {
-	ID           int64
-	Username     string
-	Code         string
-	Wallet       string
-	RefCount     int
+	ID            int64
+	Username      string
+	Code          string
+	Wallet        string
+	RefCount      int
 	PendingPayout float64
-	PaidOut      float64 // Выплачено (колонка G)
+	PaidOut       float64 // Выплачено (колонка G)
 }
 
 type Invited struct {
-	UserID int64
+	UserID  int64
 	RefCode string
 }
 
 type Referral struct {
-	RefID      int64
-	RefCode    string
-	Profit     float64
-	DealID     string
-	Bonus      float64
-	Date       string
+	RefID   int64
+	RefCode string
+	Profit  float64
+	DealID  string
+	Bonus   float64
+	Date    string
 }
 
 type Withdrawal struct {
@@ -60,7 +60,7 @@ type Withdrawal struct {
 
 func NewSheetsClient(spreadsheetID, credentialsPath string) (*SheetsClient, error) {
 	ctx := context.Background()
-	
+
 	service, err := sheets.NewService(ctx, option.WithCredentialsFile(credentialsPath))
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания клиента Google Sheets: %w", err)
@@ -74,12 +74,12 @@ func NewSheetsClient(spreadsheetID, credentialsPath string) (*SheetsClient, erro
 		invitedByUserID: make(map[int64]*Invited),
 		existingDealIDs: make(map[string]bool),
 	}
-	
+
 	// Загружаем кэш при инициализации
 	if err := client.LoadCache(); err != nil {
 		log.Printf("Предупреждение: не удалось загрузить кэш при инициализации: %v", err)
 	}
-	
+
 	return client, nil
 }
 
@@ -87,28 +87,28 @@ func NewSheetsClient(spreadsheetID, credentialsPath string) (*SheetsClient, erro
 func (sc *SheetsClient) LoadCache() error {
 	sc.cacheMutex.Lock()
 	defer sc.cacheMutex.Unlock()
-	
+
 	log.Printf("Загрузка кэша...")
-	
+
 	// Загружаем рефоводов
 	if err := sc.loadReferrersCache(); err != nil {
 		return fmt.Errorf("ошибка загрузки кэша рефоводов: %w", err)
 	}
-	
+
 	// Загружаем приглашенных
 	if err := sc.loadInvitedCache(); err != nil {
 		return fmt.Errorf("ошибка загрузки кэша приглашенных: %w", err)
 	}
-	
+
 	// Загружаем существующие DealIDs
 	if err := sc.loadDealIDsCache(); err != nil {
 		return fmt.Errorf("ошибка загрузки кэша DealIDs: %w", err)
 	}
-	
+
 	sc.lastCacheUpdate = time.Now()
-	log.Printf("Кэш загружен: рефоводов=%d, приглашенных=%d, сделок=%d", 
+	log.Printf("Кэш загружен: рефоводов=%d, приглашенных=%d, сделок=%d",
 		len(sc.referrersByID), len(sc.invitedByUserID), len(sc.existingDealIDs))
-	
+
 	return nil
 }
 
@@ -132,22 +132,22 @@ func (sc *SheetsClient) loadReferrersCache() error {
 		if len(row) < 1 {
 			continue
 		}
-		
+
 		ref := sc.parseReferrerRow(row)
 		if ref == nil {
 			continue
 		}
-		
+
 		// Добавляем в кэш по ID
 		sc.referrersByID[ref.ID] = ref
-		
+
 		// Добавляем в кэш по коду (нормализованному)
 		if ref.Code != "" {
 			normalizedCode := strings.ToUpper(strings.TrimSpace(ref.Code))
 			sc.referrersByCode[normalizedCode] = ref
 		}
 	}
-	
+
 	return nil
 }
 
@@ -156,7 +156,7 @@ func (sc *SheetsClient) parseReferrerRow(row []interface{}) *Referrer {
 	if len(row) < 1 {
 		return nil
 	}
-	
+
 	// Пробуем получить ID разными способами
 	var id int64
 	switch v := row[0].(type) {
@@ -183,9 +183,9 @@ func (sc *SheetsClient) parseReferrerRow(row []interface{}) *Referrer {
 		}
 		id = parsed
 	}
-	
+
 	ref := &Referrer{ID: id}
-	
+
 	if len(row) > 1 {
 		ref.Username = getStringValue(row[1])
 	}
@@ -204,7 +204,7 @@ func (sc *SheetsClient) parseReferrerRow(row []interface{}) *Referrer {
 	if len(row) > 6 {
 		ref.PaidOut = getFloatValue(row[6])
 	}
-	
+
 	return ref
 }
 
@@ -226,7 +226,7 @@ func (sc *SheetsClient) loadInvitedCache() error {
 		if len(row) < 2 {
 			continue
 		}
-		
+
 		var userID int64
 		switch v := row[0].(type) {
 		case string:
@@ -244,15 +244,15 @@ func (sc *SheetsClient) loadInvitedCache() error {
 		default:
 			continue
 		}
-		
+
 		invited := &Invited{
-			UserID: userID,
+			UserID:  userID,
 			RefCode: getStringValue(row[1]),
 		}
-		
+
 		sc.invitedByUserID[userID] = invited
 	}
-	
+
 	return nil
 }
 
@@ -278,7 +278,7 @@ func (sc *SheetsClient) loadDealIDsCache() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -286,26 +286,26 @@ func (sc *SheetsClient) loadDealIDsCache() error {
 func (sc *SheetsClient) GetReferrerByID(userID int64) (*Referrer, error) {
 	sc.cacheMutex.RLock()
 	defer sc.cacheMutex.RUnlock()
-	
+
 	ref, exists := sc.referrersByID[userID]
 	if !exists {
 		return nil, nil
 	}
-	
+
 	// Возвращаем копию, чтобы избежать гонок данных
 	refCopy := *ref
 	return &refCopy, nil
 }
 
 // findFirstEmptyRow находит первую пустую строку в листе (начиная со строки 2)
-func (sc *SheetsClient) findFirstEmptyRow(sheetName string, columnCount int) (int, error) {
+func (sc *SheetsClient) findFirstEmptyRow(sheetName string) (int, error) {
 	readRange := fmt.Sprintf("%s!A2:A", sheetName)
 	resp, err := sc.service.Spreadsheets.Values.Get(sc.spreadsheetID, readRange).Do()
 	if err != nil {
 		return 2, fmt.Errorf("ошибка чтения листа %s: %w", sheetName, err)
 	}
 
-	if resp.Values == nil || len(resp.Values) == 0 {
+	if len(resp.Values) == 0 {
 		return 2, nil // Первая строка после заголовка
 	}
 
@@ -329,16 +329,16 @@ func (sc *SheetsClient) CreateReferrer(userID int64, username string) (*Referrer
 	}
 
 	ref := &Referrer{
-		ID:       userID,
-		Username: username,
-		Code:     code,
-		RefCount: 0,
+		ID:            userID,
+		Username:      username,
+		Code:          code,
+		RefCount:      0,
 		PendingPayout: 0.0,
-		PaidOut: 0.0,
+		PaidOut:       0.0,
 	}
 
 	// Находим первую пустую строку
-	rowIndex, err := sc.findFirstEmptyRow("Рефоводы", 7)
+	rowIndex, err := sc.findFirstEmptyRow("Рефоводы")
 	if err != nil {
 		return nil, fmt.Errorf("ошибка поиска пустой строки: %w", err)
 	}
@@ -348,16 +348,16 @@ func (sc *SheetsClient) CreateReferrer(userID int64, username string) (*Referrer
 	if ref.Wallet != "" {
 		walletValue = ref.Wallet
 	}
-	
+
 	values := [][]interface{}{
 		{
-			fmt.Sprintf("%d", ref.ID),  // Колонка A: ID
-			ref.Username,               // Колонка B: Username
-			ref.Code,                    // Колонка C: Код
-			walletValue,                 // Колонка D: Кошелёк (может быть пустым)
-			ref.RefCount,                // Колонка E: Количество рефералов
-			ref.PendingPayout,           // Колонка F: Ожидает выплаты
-			ref.PaidOut,                 // Колонка G: Выплачено
+			fmt.Sprintf("%d", ref.ID), // Колонка A: ID
+			ref.Username,              // Колонка B: Username
+			ref.Code,                  // Колонка C: Код
+			walletValue,               // Колонка D: Кошелёк (может быть пустым)
+			ref.RefCount,              // Колонка E: Количество рефералов
+			ref.PendingPayout,         // Колонка F: Ожидает выплаты
+			ref.PaidOut,               // Колонка G: Выплачено
 		},
 	}
 
@@ -406,17 +406,17 @@ func (sc *SheetsClient) UpdateReferrer(ref *Referrer) error {
 		if len(row) < 1 {
 			continue
 		}
-		
+
 		idStr, ok := row[0].(string)
 		if !ok {
 			continue
 		}
-		
+
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			continue
 		}
-		
+
 		if id == ref.ID {
 			rowIndex = i + 2 // +2 потому что первая строка - заголовок, и индексация с 1
 			break
@@ -429,22 +429,22 @@ func (sc *SheetsClient) UpdateReferrer(ref *Referrer) error {
 
 	// Обновляем строку
 	updateRange := fmt.Sprintf("Рефоводы!A%d:G%d", rowIndex, rowIndex)
-	
+
 	// Важно: пустые значения должны быть пустыми строками
 	walletValue := ""
 	if ref.Wallet != "" {
 		walletValue = ref.Wallet
 	}
-	
+
 	values := [][]interface{}{
 		{
-			fmt.Sprintf("%d", ref.ID),  // Колонка A: ID
-			ref.Username,               // Колонка B: Username
-			ref.Code,                    // Колонка C: Код
-			walletValue,                 // Колонка D: Кошелёк
-			ref.RefCount,                // Колонка E: Количество рефералов
-			ref.PendingPayout,           // Колонка F: Ожидает выплаты
-			ref.PaidOut,                 // Колонка G: Выплачено
+			fmt.Sprintf("%d", ref.ID), // Колонка A: ID
+			ref.Username,              // Колонка B: Username
+			ref.Code,                  // Колонка C: Код
+			walletValue,               // Колонка D: Кошелёк
+			ref.RefCount,              // Колонка E: Количество рефералов
+			ref.PendingPayout,         // Колонка F: Ожидает выплаты
+			ref.PaidOut,               // Колонка G: Выплачено
 		},
 	}
 
@@ -489,10 +489,10 @@ func (sc *SheetsClient) UpdateReferrer(ref *Referrer) error {
 func (sc *SheetsClient) generateUniqueCode() (string, error) {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	const codeLength = 6
-	
+
 	maxAttempts := 100
 	charsetLen := big.NewInt(int64(len(charset)))
-	
+
 	for i := 0; i < maxAttempts; i++ {
 		code := make([]byte, codeLength)
 		for j := range code {
@@ -503,23 +503,23 @@ func (sc *SheetsClient) generateUniqueCode() (string, error) {
 			}
 			code[j] = charset[n.Int64()]
 		}
-		
+
 		codeStr := string(code)
-		
+
 		// Проверяем уникальность
 		exists, err := sc.codeExists(codeStr)
 		if err != nil {
 			return "", err
 		}
-		
+
 		if !exists {
 			return codeStr, nil
 		}
-		
+
 		// Небольшая задержка перед следующей попыткой
 		time.Sleep(10 * time.Millisecond)
 	}
-	
+
 	return "", fmt.Errorf("не удалось сгенерировать уникальный код после %d попыток", maxAttempts)
 }
 
@@ -550,12 +550,12 @@ func (sc *SheetsClient) codeExists(code string) (bool, error) {
 func (sc *SheetsClient) GetInvitedByUserID(userID int64) (*Invited, error) {
 	sc.cacheMutex.RLock()
 	defer sc.cacheMutex.RUnlock()
-	
+
 	invited, exists := sc.invitedByUserID[userID]
 	if !exists {
 		return nil, nil
 	}
-	
+
 	// Возвращаем копию
 	invitedCopy := *invited
 	return &invitedCopy, nil
@@ -564,7 +564,7 @@ func (sc *SheetsClient) GetInvitedByUserID(userID int64) (*Invited, error) {
 // CreateInvited создает запись в Приглашенные
 func (sc *SheetsClient) CreateInvited(userID int64, refCode string) error {
 	// Находим первую пустую строку
-	rowIndex, err := sc.findFirstEmptyRow("Приглашенные", 2)
+	rowIndex, err := sc.findFirstEmptyRow("Приглашенные")
 	if err != nil {
 		return fmt.Errorf("ошибка поиска пустой строки: %w", err)
 	}
@@ -572,7 +572,7 @@ func (sc *SheetsClient) CreateInvited(userID int64, refCode string) error {
 	values := [][]interface{}{
 		{
 			fmt.Sprintf("%d", userID), // Колонка A: ID пользователя
-			refCode,                    // Колонка B: Код пригласившего
+			refCode,                   // Колонка B: Код пригласившего
 		},
 	}
 
@@ -612,15 +612,15 @@ func (sc *SheetsClient) CreateInvited(userID int64, refCode string) error {
 func (sc *SheetsClient) GetReferrerByCode(code string) (*Referrer, error) {
 	sc.cacheMutex.RLock()
 	defer sc.cacheMutex.RUnlock()
-	
+
 	// Нормализуем код
 	normalizedCode := strings.ToUpper(strings.TrimSpace(code))
-	
+
 	ref, exists := sc.referrersByCode[normalizedCode]
 	if !exists {
 		return nil, nil
 	}
-	
+
 	// Возвращаем копию, чтобы избежать гонок данных
 	refCopy := *ref
 	return &refCopy, nil
@@ -632,7 +632,7 @@ func (sc *SheetsClient) IncrementRefCount(refCode string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if ref == nil {
 		return fmt.Errorf("рефовод с кодом %s не найден", refCode)
 	}
@@ -646,13 +646,13 @@ func (sc *SheetsClient) IncrementRefCount(refCode string) error {
 func (sc *SheetsClient) GetExistingDealIDs() (map[string]bool, error) {
 	sc.cacheMutex.RLock()
 	defer sc.cacheMutex.RUnlock()
-	
+
 	// Возвращаем копию map
 	dealIDs := make(map[string]bool, len(sc.existingDealIDs))
 	for k, v := range sc.existingDealIDs {
 		dealIDs[k] = v
 	}
-	
+
 	return dealIDs, nil
 }
 
@@ -683,12 +683,12 @@ func (sc *SheetsClient) GetNewWithdrawals() ([]Withdrawal, error) {
 		if len(row) < 2 {
 			continue
 		}
-		
+
 		dealID := getStringValue(row[0])
 		if dealID == "" {
 			continue
 		}
-		
+
 		// Пропускаем уже обработанные сделки
 		if existingDealIDs[dealID] {
 			continue
@@ -700,20 +700,20 @@ func (sc *SheetsClient) GetNewWithdrawals() ([]Withdrawal, error) {
 			log.Printf("Пропуск сделки %s: недостаточно колонок для UserID", dealID)
 			continue
 		}
-		
+
 		switch v := row[1].(type) {
 		case string:
 			// Убираем неразрывные пробелы и другие пробельные символы
 			cleaned := strings.ReplaceAll(v, "\u00a0", "") // неразрывный пробел
 			cleaned = strings.ReplaceAll(cleaned, " ", "")
 			cleaned = strings.TrimSpace(cleaned)
-			
+
 			// Пропускаем если это текст (не число)
 			if cleaned == "" || strings.HasPrefix(strings.ToLower(cleaned), "без") {
 				log.Printf("Пропуск сделки %s: UserID содержит текст или пустой", dealID)
 				continue
 			}
-			
+
 			parsed, err := strconv.ParseInt(cleaned, 10, 64)
 			if err != nil {
 				log.Printf("Ошибка парсинга UserID для сделки %s (значение: %q): %v", dealID, v, err)
@@ -732,12 +732,12 @@ func (sc *SheetsClient) GetNewWithdrawals() ([]Withdrawal, error) {
 			userIDStr = strings.ReplaceAll(userIDStr, "\u00a0", "")
 			userIDStr = strings.ReplaceAll(userIDStr, " ", "")
 			userIDStr = strings.TrimSpace(userIDStr)
-			
+
 			if userIDStr == "" || strings.HasPrefix(strings.ToLower(userIDStr), "без") {
 				log.Printf("Пропуск сделки %s: UserID содержит текст или пустой", dealID)
 				continue
 			}
-			
+
 			parsed, err := strconv.ParseInt(userIDStr, 10, 64)
 			if err != nil {
 				log.Printf("Ошибка парсинга UserID для сделки %s (значение: %q): %v", dealID, userIDStr, err)
@@ -754,19 +754,19 @@ func (sc *SheetsClient) GetNewWithdrawals() ([]Withdrawal, error) {
 			// Стандартный случай: A, B, C, D
 			profitIndex = 3
 			profit = getFloatValue(row[3])
-			log.Printf("Сделка %s: Profit из колонки D (индекс %d), raw значение: %v, parsed: %.2f", 
+			log.Printf("Сделка %s: Profit из колонки D (индекс %d), raw значение: %v, parsed: %.2f",
 				dealID, profitIndex, row[3], profit)
 		} else if len(row) >= 3 {
 			// Если колонка C отсутствует: A, B, D
 			profitIndex = 2
 			profit = getFloatValue(row[2])
-			log.Printf("Сделка %s: Profit из колонки D (индекс %d, колонка C отсутствует), raw значение: %v, parsed: %.2f", 
+			log.Printf("Сделка %s: Profit из колонки D (индекс %d, колонка C отсутствует), raw значение: %v, parsed: %.2f",
 				dealID, profitIndex, row[2], profit)
 		} else {
 			log.Printf("Пропуск сделки %s: недостаточно колонок для Profit (len=%d, row=%v)", dealID, len(row), row)
 			continue
 		}
-		
+
 		if profit <= 0 {
 			log.Printf("Пропуск сделки %s: Profit <= 0 (значение: %f, raw: %v)", dealID, profit, row[profitIndex])
 			continue
@@ -785,7 +785,7 @@ func (sc *SheetsClient) GetNewWithdrawals() ([]Withdrawal, error) {
 // CreateReferral создает запись в листе Рефералы
 func (sc *SheetsClient) CreateReferral(ref *Referral) error {
 	// Находим первую пустую строку
-	rowIndex, err := sc.findFirstEmptyRow("Рефералы", 6)
+	rowIndex, err := sc.findFirstEmptyRow("Рефералы")
 	if err != nil {
 		return fmt.Errorf("ошибка поиска пустой строки: %w", err)
 	}
@@ -821,7 +821,7 @@ func (sc *SheetsClient) CreateReferral(ref *Referral) error {
 		return fmt.Errorf("ошибка добавления в Рефералы: %w", err)
 	}
 
-	log.Printf("✅ Добавлена запись в Рефералы: DealID=%s, RefID=%d, код=%s, бонус=%.2f (строка %d)", 
+	log.Printf("✅ Добавлена запись в Рефералы: DealID=%s, RefID=%d, код=%s, бонус=%.2f (строка %d)",
 		ref.DealID, ref.RefID, ref.RefCode, ref.Bonus, rowIndex)
 	if updateResp.UpdatedCells > 0 {
 		log.Printf("   Обновлено ячеек: %d, диапазон: %s", updateResp.UpdatedCells, updateResp.UpdatedRange)
@@ -840,7 +840,7 @@ func (sc *SheetsClient) CreateReferral(ref *Referral) error {
 // Выполняется каждый час для синхронизации с выплатами
 func (sc *SheetsClient) UpdatePendingPayouts() error {
 	log.Printf("Начало обновления столбца 'Ожидает выплаты'...")
-	
+
 	readRange := "Рефоводы!A2:G"
 	// Используем UNFORMATTED_VALUE для получения вычисленных значений из функций (например, СУММ)
 	resp, err := sc.service.Spreadsheets.Values.Get(sc.spreadsheetID, readRange).
@@ -849,7 +849,7 @@ func (sc *SheetsClient) UpdatePendingPayouts() error {
 		return fmt.Errorf("ошибка чтения листа Рефоводы: %w", err)
 	}
 
-	if resp.Values == nil || len(resp.Values) == 0 {
+	if len(resp.Values) == 0 {
 		log.Printf("Нет данных для обновления")
 		return nil
 	}
@@ -859,39 +859,39 @@ func (sc *SheetsClient) UpdatePendingPayouts() error {
 		if len(row) < 1 {
 			continue
 		}
-		
+
 		// Пропускаем строки без ID
 		idStr := getStringValue(row[0])
 		if idStr == "" {
 			continue
 		}
-		
+
 		// Читаем текущее значение "Ожидает выплаты" (колонка F, индекс 5)
 		var currentPending float64
 		if len(row) > 5 {
 			currentPending = getFloatValue(row[5])
 		}
-		
+
 		// Читаем "Выплачено" (колонка G, индекс 6) - это вычисляемое значение из функции СУММ
 		var paidOut float64
 		if len(row) > 6 {
 			paidOut = getFloatValue(row[6])
 		}
-		
+
 		// Вычисляем новое значение: Ожидает выплаты - Выплачено
 		newPending := currentPending - paidOut
-		
+
 		// Если значение изменилось, обновляем
 		if newPending != currentPending {
 			rowIndex := i + 2 // +2 потому что начинаем с строки 2 и индексация с 0
 			updateRange := fmt.Sprintf("Рефоводы!F%d", rowIndex)
-			
+
 			updates = append(updates, &sheets.ValueRange{
 				Range:  updateRange,
 				Values: [][]interface{}{{newPending}},
 			})
-			
-			log.Printf("Обновление строки %d (ID: %s): Ожидает выплаты %.2f -> %.2f (Выплачено: %.2f)", 
+
+			log.Printf("Обновление строки %d (ID: %s): Ожидает выплаты %.2f -> %.2f (Выплачено: %.2f)",
 				rowIndex, idStr, currentPending, newPending, paidOut)
 		}
 	}
@@ -932,7 +932,7 @@ func getIntValue(val interface{}) int {
 	if val == nil {
 		return 0
 	}
-	
+
 	// Пробуем разные типы
 	switch v := val.(type) {
 	case int:
@@ -968,7 +968,7 @@ func getFloatValue(val interface{}) float64 {
 	if val == nil {
 		return 0.0
 	}
-	
+
 	// Пробуем разные типы
 	switch v := val.(type) {
 	case float64:
