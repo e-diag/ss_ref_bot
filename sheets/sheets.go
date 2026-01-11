@@ -322,6 +322,18 @@ func (sc *SheetsClient) findFirstEmptyRow(sheetName string) (int, error) {
 
 // CreateReferrer создает нового рефовода
 func (sc *SheetsClient) CreateReferrer(userID int64, username string) (*Referrer, error) {
+	// Проверяем, не существует ли уже рефовод с таким ID
+	sc.cacheMutex.RLock()
+	existingRef, exists := sc.referrersByID[userID]
+	sc.cacheMutex.RUnlock()
+
+	if exists {
+		log.Printf("⚠️ Рефовод с ID %d уже существует (код: %s), возвращаем существующего", userID, existingRef.Code)
+		// Возвращаем копию, чтобы избежать гонок данных
+		refCopy := *existingRef
+		return &refCopy, nil
+	}
+
 	// Генерируем уникальный код
 	code, err := sc.generateUniqueCode()
 	if err != nil {
@@ -385,6 +397,15 @@ func (sc *SheetsClient) CreateReferrer(userID int64, username string) (*Referrer
 	if updateResp.UpdatedCells > 0 {
 		log.Printf("   Обновлено ячеек: %d, диапазон: %s", updateResp.UpdatedCells, updateResp.UpdatedRange)
 	}
+
+	// Обновляем кэш
+	sc.cacheMutex.Lock()
+	sc.referrersByID[ref.ID] = ref
+	if ref.Code != "" {
+		normalizedCode := strings.ToUpper(strings.TrimSpace(ref.Code))
+		sc.referrersByCode[normalizedCode] = ref
+	}
+	sc.cacheMutex.Unlock()
 
 	return ref, nil
 }
