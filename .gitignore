@@ -1,0 +1,36 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/bin/
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+.env.local
+
+# Google credentials
+credentials.json
+*.json
+!go.mod
+!go.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
