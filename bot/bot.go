@@ -75,10 +75,27 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 
 	log.Printf("Сообщение от %d (@%s): %s", userID, username, msg.Text)
 
-	// Обработка команды /start
-	if msg.IsCommand() && msg.Command() == "start" {
-		b.handleStart(msg, userID, username)
-		return
+	// Обработка команд
+	if msg.IsCommand() {
+		command := msg.Command()
+		switch command {
+		case "start":
+			b.handleStart(msg, userID, username)
+			return
+		case "invite", "invite_friends":
+			b.handleInviteFriends(msg, userID, username)
+			return
+		case "referrals", "my_referrals":
+			b.handleMyReferrals(msg, userID)
+			return
+		case "wallet", "connect_wallet":
+			b.handleConnectWallet(msg, userID)
+			return
+		default:
+			// Неизвестная команда - показываем меню
+			b.showMenu(msg.Chat.ID, "Неизвестная команда. Выберите действие из меню:")
+			return
+		}
 	}
 
 	// Обработка текстовых сообщений (для ввода кошелька)
@@ -99,7 +116,7 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 			// Проверяем, есть ли у пользователя рефовод
 			ref, err := b.sheets.GetReferrerByID(userID)
 			if err == nil && ref != nil && ref.Wallet == "" {
-				b.sendMessage(msg.Chat.ID, "Обнаружен адрес кошелька. Используйте кнопку 'Подключить TON-кошелёк' для его сохранения.")
+				b.sendMessage(msg.Chat.ID, "Обнаружен адрес кошелька. Используйте команду /wallet или кнопку 'Подключить TON-кошелёк' для его сохранения.")
 			}
 		}
 	}
